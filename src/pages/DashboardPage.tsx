@@ -9,6 +9,7 @@ import { useAlerts  } from '../hooks/useAlerts';
 import { usePermissions } from '../hooks/usePermissions';
 import UserList from '../components/users/UserList';
 import MOCK_USERS from '../api/users.json';
+import { supabase } from '../lib/supabase';
 
 type Tab = 'monitoreo' | 'alertas' | 'historial' | 'usuarios';
 
@@ -24,6 +25,85 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>('monitoreo');
+// Estados para Modal y Supabase (Registro y Eliminación)
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [refreshUsers, setRefreshUsers] = useState(0); // Gatillo para recargar la tabla
+  
+  // Estado del formulario adaptado a tu tabla 'profiles'
+  const [formData, setFormData] = useState({
+    name: '',
+    last_name: '',
+    phone: '',
+    email: '',
+    password: '',
+    role: 'viewer'
+  });
+
+  // LÓGICA DE REGISTRO
+  const handleRegisterUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing(true);
+
+    try {
+      // 1. Crear al usuario en Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (authError) throw new Error(authError.message);
+      if (!authData.user) throw new Error("Error desconocido al crear credenciales.");
+
+      // 2. Insertar sus datos en tu tabla pública 'profiles'
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([{
+          id: authData.user.id,
+          name: formData.name,
+          last_name: formData.last_name,
+          phone: formData.phone,
+          role: formData.role
+        }]);
+
+      if (profileError) throw new Error(profileError.message);
+
+      alert("Usuario creado exitosamente.");
+      setShowAddUserModal(false);
+      setFormData({ name: '', last_name: '', phone: '', email: '', password: '', role: 'viewer' });
+      setRefreshUsers(prev => prev + 1); // Recarga la tabla
+    } catch (error: any) {
+      alert("Error: " + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // LÓGICA DE ELIMINACIÓN
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsProcessing(true);
+
+    try {
+      // Borrar de la tabla profiles. 
+      // Nota: A nivel de tu app, borrar su perfil le quita su rol y revoca su acceso a estas pantallas.
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userToDelete);
+
+      if (error) throw new Error(error.message);
+
+      alert("El perfil del usuario ha sido revocado.");
+      setUserToDelete(null);
+      setRefreshUsers(prev => prev + 1); // Recarga la tabla
+    } catch (error: any) {
+      alert("Error al eliminar: " + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const { sensors, loading: loadSensors } = useSensors(8000);
   const { events,  loading: loadEvents  } = useEvents(50);
@@ -282,10 +362,104 @@ export default function DashboardPage() {
           )}
 
           {/* ── USUARIOS ── */}
+          {/* Aquí mantenemos la seguridad: Solo se renderiza si el usuario actual puede administrar */}
           {tab === 'usuarios' && can('manage_users') && (
-            <div className="animate-fade-in bg-[#151515] border border-[#222] rounded-xl p-6">
-              <h2 className="text-xl font-bold text-white mb-6">Gestión de Usuarios</h2>
-              <UserList />
+            <div className="animate-fade-in relative">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+                <div>
+                  <SectionTitle>Control de Acceso</SectionTitle>
+                  <p className="text-sm text-[#888]">Administra el personal con acceso al sistema Sentinel.</p>
+                </div>
+                <button 
+                  onClick={() => setShowAddUserModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#10b981] hover:bg-[#059669] text-black font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Agregar Usuario
+                </button>
+              </div>
+              
+              <div className="bg-[#151515] border border-[#222] rounded-xl p-6">
+                <UserList onDeleteClick={(userId) => setUserToDelete(userId)} refreshTrigger={refreshUsers} />
+              </div>
+
+              {/* MODAL: AGREGAR USUARIO */}
+              {showAddUserModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                  <div className="bg-[#151515] border border-[#222] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+                    <div className="p-6 border-b border-[#222] flex justify-between items-center bg-[#0a0a0a]">
+                      <h3 className="text-lg font-bold text-white">Registrar Nuevo Usuario</h3>
+                      <button onClick={() => setShowAddUserModal(false)} className="text-[#666] hover:text-white">✕</button>
+                    </div>
+                    
+                    <form onSubmit={handleRegisterUser}>
+                      <div className="p-6 grid grid-cols-2 gap-4">
+                        {/* Datos para la tabla public.profiles */}
+                        <div>
+                          <label className="block text-xs font-bold text-[#888] uppercase mb-2">Nombre</label>
+                          <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ej. Carlos" className="w-full bg-[#0a0a0a] border border-[#333] text-white rounded-lg px-4 py-2 focus:border-[#10b981] outline-none transition-all" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-[#888] uppercase mb-2">Apellido</label>
+                          <input required type="text" value={formData.last_name} onChange={e => setFormData({...formData, last_name: e.target.value})} placeholder="Mendoza" className="w-full bg-[#0a0a0a] border border-[#333] text-white rounded-lg px-4 py-2 focus:border-[#10b981] outline-none transition-all" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-[#888] uppercase mb-2">Teléfono</label>
+                          <input required type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="999 888 777" className="w-full bg-[#0a0a0a] border border-[#333] text-white rounded-lg px-4 py-2 focus:border-[#10b981] outline-none transition-all" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-[#888] uppercase mb-2">Rol del Sistema</label>
+                          <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-[#0a0a0a] border border-[#333] text-white rounded-lg px-4 py-2 focus:border-[#10b981] outline-none">
+                            <option value="viewer">Viewer (Lectura)</option>
+                            <option value="admin">Administrador</option>
+                          </select>
+                        </div>
+                        
+                        {/* Datos para la tabla auth.users */}
+                        <div className="col-span-2 mt-2 border-t border-[#333] pt-4">
+                          <p className="text-xs text-[#10b981] font-bold mb-3 uppercase tracking-widest">Credenciales de Acceso</p>
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-bold text-[#888] uppercase mb-2">Correo Electrónico</label>
+                          <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="carlos@sentinel.io" className="w-full bg-[#0a0a0a] border border-[#333] text-white rounded-lg px-4 py-2 focus:border-[#10b981] outline-none transition-all" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-bold text-[#888] uppercase mb-2">Contraseña Temporal</label>
+                          <input required type="password" minLength={6} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Mínimo 6 caracteres" className="w-full bg-[#0a0a0a] border border-[#333] text-white rounded-lg px-4 py-2 focus:border-[#10b981] outline-none transition-all" />
+                        </div>
+                      </div>
+
+                      <div className="p-4 border-t border-[#222] bg-[#0a0a0a] flex justify-end gap-3">
+                        <button type="button" onClick={() => setShowAddUserModal(false)} className="px-4 py-2 text-sm font-bold text-[#888] hover:text-white">Cancelar</button>
+                        <button type="submit" disabled={isProcessing} className="px-4 py-2 text-sm font-bold text-black bg-[#10b981] hover:bg-[#059669] rounded-lg disabled:opacity-50">
+                          {isProcessing ? 'Registrando...' : 'Crear Usuario'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* MODAL: ELIMINAR */}
+              {userToDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                  <div className="bg-[#151515] border border-[#f43f5e]/30 rounded-2xl w-full max-w-sm shadow-[0_0_30px_rgba(244,63,94,0.1)] overflow-hidden">
+                    <div className="p-6 flex flex-col items-center text-center">
+                      <div className="w-16 h-16 rounded-full bg-[#f43f5e]/10 flex items-center justify-center mb-4 border border-[#f43f5e]/20">
+                        <span className="text-2xl">⚠️</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-white mb-2">¿Revocar Acceso?</h3>
+                      <p className="text-sm text-[#888]">El perfil será borrado de la base de datos y el usuario perderá su rol en el sistema.</p>
+                    </div>
+                    <div className="flex border-t border-[#222]">
+                      <button onClick={() => setUserToDelete(null)} disabled={isProcessing} className="flex-1 py-3 text-sm font-bold text-[#888] border-r border-[#222] hover:bg-[#222]">Cancelar</button>
+                      <button onClick={handleDeleteUser} disabled={isProcessing} className="flex-1 py-3 text-sm font-bold text-[#f43f5e] hover:bg-[#f43f5e]/10 transition-colors">
+                        {isProcessing ? 'Borrando...' : 'Sí, Eliminar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

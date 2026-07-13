@@ -11,7 +11,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Lógica original de tu compañero intacta
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -26,7 +25,6 @@ export default function LoginPage() {
     }
   };
 
-  // Lógica original de tu compañero intacta
   const handleFaceRecognized = useCallback((recognizedName: string) => {
     const found = MOCK_USERS.find(u => u.name === recognizedName && u.active);
 
@@ -158,7 +156,6 @@ export default function LoginPage() {
             {/* Línea de escaneo animada */}
             <div className="absolute left-0 w-full h-0.5 bg-[#10b981]/50 shadow-[0_0_10px_#10b981] z-20 animate-scan-line"></div>
 
-            {/* El componente de tu compañero */}
             <div className="w-full h-full object-cover relative z-10 [&>div]:h-full [&>div]:w-full">
               <FaceCapture onRecognized={handleFaceRecognized} />
             </div>
