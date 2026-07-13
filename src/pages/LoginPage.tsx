@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { login } from '../api/services';
 import FaceCapture from '../components/camera/FaceCapture';
 import MOCK_USERS from '../api/users.json';
+import { supabase } from '../lib/supabase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -11,15 +12,35 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // 1. LÓGICA DE LOGIN MANUAL CON SUPABASE
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+    
     try {
-      await login(email, password);
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      // ¡AQUÍ ESTÁ EL CAMBIO! Ahora mostramos el error exacto que envía Supabase
+      if (authError) throw new Error(`Supabase dice: ${authError.message}`);
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
+
+      localStorage.setItem('sentinel_session', JSON.stringify({
+        ...authData.user,
+        ...profile
+      }));
+      
       navigate('/dashboard');
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }

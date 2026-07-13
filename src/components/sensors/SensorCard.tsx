@@ -2,11 +2,12 @@ import type { Sensor } from '../../types'
 
 const statusColors = {
   online:    { dot: '#10b981', border: 'rgba(34,211,238,0.25)',  bg: 'rgba(34,211,238,0.04)'  },
-  offline:   { dot: '#64748b', border: 'rgba(148,163,184,0.12)', bg: 'transparent'             },
+  offline:   { dot: '#64748b', border: 'rgba(148,163,184,0.12)', bg: 'transparent'            },
   triggered: { dot: '#f43f5e', border: 'rgba(244,63,94,0.5)',    bg: 'rgba(244,63,94,0.06)'   },
 }
 
-const statusLabel = {
+// Extendemos el Record por si llega un string que no conocemos
+const statusLabel: Record<string, string> = {
   online:    'En línea',
   offline:   'Sin conexión',
   triggered: '¡ACTIVADO!',
@@ -37,7 +38,9 @@ const typeIcon = (type: Sensor['type']) => {
 interface Props { sensor: Sensor }
 
 export default function SensorCard({ sensor }: Props) {
-  const colors = statusColors[sensor.status]
+  //Si el estado no existe en statusColors, usamos 'online' por defecto
+  const colors = statusColors[sensor.status as keyof typeof statusColors] || statusColors.online;
+  const label = statusLabel[sensor.status] || 'Desconocido';
 
   return (
     <div
@@ -69,7 +72,7 @@ export default function SensorCard({ sensor }: Props) {
             background: sensor.status === 'triggered' ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)',
             color:      sensor.status === 'triggered' ? '#f43f5e' : sensor.status === 'offline' ? '#64748b' : '#10b981',
           }}>
-          {statusLabel[sensor.status]}
+          {label}
         </span>
       </div>
     </div>

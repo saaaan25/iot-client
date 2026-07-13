@@ -25,7 +25,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>('monitoreo');
-// Estados para Modal y Supabase (Registro y Eliminación)
+  
+  // Estados para Modal y Supabase (Registro y Eliminación)
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -41,13 +42,14 @@ export default function DashboardPage() {
     role: 'viewer'
   });
 
-  // LÓGICA DE REGISTRO
+  // LÓGICA DE REGISTRO (Adaptada al Trigger Básico de Supabase)
   const handleRegisterUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
 
     try {
-      // 1. Crear al usuario en Supabase Auth
+      // 1. Crear al usuario en Supabase Auth.
+      // Esto disparará el trigger oculto que creará una fila casi vacía en 'profiles'
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -56,20 +58,20 @@ export default function DashboardPage() {
       if (authError) throw new Error(authError.message);
       if (!authData.user) throw new Error("Error desconocido al crear credenciales.");
 
-      // 2. Insertar sus datos en tu tabla pública 'profiles'
+      // 2. Hacer un UPDATE (No Insert) para llenar los datos de la fila que el trigger acaba de crear
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert([{
-          id: authData.user.id,
+        .update({
           name: formData.name,
           last_name: formData.last_name,
           phone: formData.phone,
           role: formData.role
-        }]);
+        })
+        .eq('id', authData.user.id); // Actualizamos donde el ID coincida
 
       if (profileError) throw new Error(profileError.message);
 
-      alert("Usuario creado exitosamente.");
+      alert("Usuario creado y perfil actualizado exitosamente.");
       setShowAddUserModal(false);
       setFormData({ name: '', last_name: '', phone: '', email: '', password: '', role: 'viewer' });
       setRefreshUsers(prev => prev + 1); // Recarga la tabla
