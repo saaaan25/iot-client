@@ -5,25 +5,51 @@ import {
   createEvent as createEventService,
   deleteEvent as deleteEventService,
 } from '../services/events.service'
-import type { SecurityEvent } from '../types'
+import type { SecurityEvent, EventType, EventSeverity } from '../types'
 
 export function useGetEvents(limit = 50) {
   const [events, setEvents] = useState<SecurityEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const mapRowToEvent = useCallback((row: any): SecurityEvent => {
+    const dt = row.event_date ?? row.created_at ?? row.timestamp ?? row.date ?? null
+    const dateObj = dt ? new Date(dt) : null
+    const date = dateObj ? dateObj.toISOString().split('T')[0] : ''
+    const time = dateObj ? dateObj.toTimeString().split(' ')[0].slice(0,5) : ''
+
+    const sensorId = row.sensors?.name ?? row.sensor?.name ?? row.sensor_name ?? row.sensor_id ?? row.sensorId ?? ''
+    const type = (row.type ?? row.event_type ?? 'alert') as EventType
+    const label = row.label ?? row.description ?? `${type} event`
+    const severity = (row.severity ?? row.level ?? 'ok') as EventSeverity
+    const imageUrl = row.image_url ?? row.imageUrl ?? null
+
+    return {
+      id: String(row.id ?? ''),
+      date,
+      time,
+      sensorId,
+      type,
+      label,
+      severity,
+      imageUrl,
+    }
+  }, [])
+
   const fetchEvents = useCallback(async () => {
     try {
       setLoading(true)
       const data = await getEventsService()
-      setEvents((data as SecurityEvent[]).slice(0, limit))
+      const rows = Array.isArray(data) ? data : []
+      const mapped = rows.map(mapRowToEvent).slice(0, limit)
+      setEvents(mapped)
       setError(null)
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [limit])
+  }, [limit, mapRowToEvent])
 
   useEffect(() => {
     void fetchEvents()
@@ -37,20 +63,46 @@ export function useGetEventsBySensor() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const mapRowToEvent = useCallback((row: any): SecurityEvent => {
+    const dt = row.event_date ?? row.created_at ?? row.timestamp ?? row.date ?? null
+    const dateObj = dt ? new Date(dt) : null
+    const date = dateObj ? dateObj.toISOString().split('T')[0] : ''
+    const time = dateObj ? dateObj.toTimeString().split(' ')[0].slice(0,5) : ''
+
+    const sensorId = row.sensors?.name ?? row.sensor?.name ?? row.sensor_name ?? row.sensor_id ?? row.sensorId ?? ''
+    const type = (row.type ?? row.event_type ?? 'alert') as EventType
+    const label = row.label ?? row.description ?? `${type} event`
+    const severity = (row.severity ?? row.level ?? 'ok') as EventSeverity
+    const imageUrl = row.image_url ?? row.imageUrl ?? null
+
+    return {
+      id: String(row.id ?? ''),
+      date,
+      time,
+      sensorId,
+      type,
+      label,
+      severity,
+      imageUrl,
+    }
+  }, [])
+
   const fetchEventsBySensor = useCallback(async (sensorId: string) => {
     try {
       setLoading(true)
       setError(null)
       const data = await getEventsBySensorService(sensorId)
-      setEvents(data as SecurityEvent[])
-      return data as SecurityEvent[]
+      const rows = Array.isArray(data) ? data : []
+      const mapped = rows.map(mapRowToEvent)
+      setEvents(mapped)
+      return mapped
     } catch (e) {
       setError((e as Error).message)
       throw e
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [mapRowToEvent])
 
   return { events, loading, error, fetchEventsBySensor }
 }
