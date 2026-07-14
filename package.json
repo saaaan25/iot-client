@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node node_modules/.bin/tsc -b && npx vite build",
+    "build": "npm install typescript vite && npx tsc -b && npx vite build",
     "preview": "vite preview"
   },
   "dependencies": {
