@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { SecurityEvent } from '../../types'
+import { supabase } from '../../lib/supabase'
 
 const typeLabel: Record<string, string> = {
   motion: 'Movimiento', door: 'Puerta', auth: 'Acceso', alert: 'Alerta',
@@ -17,21 +18,50 @@ interface Props {
 }
 
 export default function EventModal({ event, onClose }: Props) {
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
+  useEffect(() => {
+    setImageSrc(null)
+    if (!event?.imageUrl) return
+
+    const resolveImage = async () => {
+      try {
+        const path = event.imageUrl
+        if (path.startsWith('http')) {
+          setImageSrc(path)
+          return
+        }
+
+        const buckets = ['events', 'images', 'captures']
+        for (const b of buckets) {
+          const { data } = supabase.storage.from(b).getPublicUrl(path)
+          const publicUrl = data?.publicUrl
+          if (publicUrl) {
+            setImageSrc(publicUrl)
+            return
+          }
+        }
+      } catch (err) {
+        console.error('Could not resolve image from storage', err)
+      }
+    }
+
+    void resolveImage()
+  }, [event])
+
   if (!event) return null
 
   const rows = [
     ['ID evento',  event.id],
     ['Fecha',      event.date],
-    ['Hora',       event.time],
     ['Sensor',     event.sensorId],
     ['Tipo',       typeLabel[event.type] ?? event.type],
-    ['Severidad',  severityLabel[event.severity] ?? event.severity],
   ]
 
   return (
@@ -58,9 +88,8 @@ export default function EventModal({ event, onClose }: Props) {
             background: '#050a14',
             border: '1px solid rgba(148,163,184,0.12)',
           }}>
-          {event.imageUrl ? (
-            <img src={event.imageUrl} alt="Captura del evento"
-              className="w-full h-full object-cover rounded-xl"/>
+          {imageSrc ? (
+            <img src={imageSrc} alt="Captura del evento" className="w-full h-full object-cover rounded-xl" />
           ) : (
             <>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
@@ -68,25 +97,18 @@ export default function EventModal({ event, onClose }: Props) {
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                 <circle cx="12" cy="13" r="4"/>
               </svg>
-              <span className="text-xs font-mono" style={{ color: '#0e7490' }}>
-                {event.id}.jpg · ESP32-CAM
-              </span>
-              <span className="text-xs" style={{ color: '#334155' }}>
-                (Conecta Supabase Storage para ver la imagen)
-              </span>
+              <span className="text-xs font-mono" style={{ color: '#0e7490' }}>{event.id}.jpg · ESP32-CAM</span>
+              <span className="text-xs" style={{ color: '#334155' }}>(Conecta Supabase Storage para ver la imagen)</span>
             </>
           )}
         </div>
 
-        {/* Detalles */}
+        {/* Detalles reducidos */}
         <div>
           {rows.map(([k, v]) => (
-            <div key={k} className="flex justify-between py-2"
-              style={{ borderBottom: '1px solid rgba(148,163,184,0.06)' }}>
+            <div key={k} className="flex justify-between py-2" style={{ borderBottom: '1px solid rgba(148,163,184,0.06)' }}>
               <span className="text-sm" style={{ color: '#64748b' }}>{k}</span>
-              <span className="text-sm font-mono" style={{
-                color: k === 'Severidad' ? severityColor[event.severity] : '#cbd5e1',
-              }}>{v}</span>
+              <span className="text-sm font-mono" style={{ color: '#cbd5e1' }}>{v}</span>
             </div>
           ))}
         </div>
