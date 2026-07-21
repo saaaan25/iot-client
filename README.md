@@ -1,5 +1,9 @@
 # IoT Client
 
+## Link de Acceso
+
+- https://iot-client-production.up.railway.app/login
+
 ## Credenciales de acceso
 
 - Administrador: leonardo.panta@unmms.edu.pe / lp1234
@@ -12,5 +16,4 @@
   VITE_SUPABASE_URL=
   VITE_SUPABASE_ANON_KEY=
   ```
-- Aún no se puede modificar la información del usuario desde la interfaz.
 - Necesita registrarse correos verificables (reales).

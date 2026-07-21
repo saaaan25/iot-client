@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { SecurityEvent } from '../../types'
 import EventModal from './EventModal'
 
@@ -31,6 +31,17 @@ interface Props { events: SecurityEvent[]; loading: boolean }
 export default function EventTable({ events, loading }: Props) {
   const [selected, setSelected] = useState<SecurityEvent | null>(null)
 
+  const uniqueEvents = useMemo(() => events.reduce((acc, current) => {
+    const timeMinute = current.time.substring(0, 5); // Extrae "17:14" de "17:14:30"
+    const key = `${current.date}-${timeMinute}-${current.sensorId}`;
+    
+    // Si aún no hemos registrado este evento en este minuto, lo agregamos a la vista
+    if (!acc.some(e => `${e.date}-${e.time.substring(0, 5)}-${e.sensorId}` === key)) {
+      acc.push(current);
+    }
+    return acc;
+  }, [] as SecurityEvent[]), [events])
+
   if (loading) {
     return (
       <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(148,163,184,0.12)' }}>
@@ -56,7 +67,8 @@ export default function EventTable({ events, loading }: Props) {
             </tr>
           </thead>
           <tbody>
-            {events.map((e, i) => {
+            {/* Usamos uniqueEvents en lugar de events */}
+            {uniqueEvents.map((e, i) => {
               const ts = typeStyles[e.type] ?? typeStyles.alert
               return (
                 <tr
@@ -87,14 +99,11 @@ export default function EventTable({ events, loading }: Props) {
                       <span className="text-xs hidden sm:block" style={{ color: '#94a3b8' }}>{e.label}</span>
                     </div>
                   </td>
+                    <td className="px-4 py-3">
+                      <ThumbPlaceholder type={e.type}/>
+                    </td>
                   <td className="px-4 py-3">
-                    {e.imageUrl
-                      ? <img src={e.imageUrl} alt="captura" className="w-11 h-8 object-cover rounded"/>
-                      : <ThumbPlaceholder type={e.type}/>
-                    }
-                  </td>
-                  <td className="px-4 py-3">
-                    <button className="text-xs px-2.5 py-1 rounded cursor-pointer"
+                    <button className="text-xs px-2.5 py-1 rounded cursor-pointer hover:bg-white/5 transition-colors"
                       style={{ border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', background: 'transparent' }}>
                       Ver
                     </button>
@@ -104,7 +113,7 @@ export default function EventTable({ events, loading }: Props) {
             })}
           </tbody>
         </table>
-        {events.length === 0 && (
+        {uniqueEvents.length === 0 && (
           <div className="py-12 text-center text-sm" style={{ color: '#64748b' }}>
             Sin eventos registrados
           </div>
