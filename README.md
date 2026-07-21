@@ -7,7 +7,7 @@
 ## Credenciales de acceso
 
 - Administrador: leonardo.panta@unmms.edu.pe / lp1234
-- Administrador: sofia.sarmiento1@unmsm.edu.pe / ss1234
+- User: sofia.sarmiento1@unmsm.edu.pe / ss1234
 
 ## Consideraciones
 
